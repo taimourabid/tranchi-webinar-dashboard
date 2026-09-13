@@ -69,9 +69,6 @@ async function findOrCreateWebinar(name) {
 router.post('/booking', requireWebhookSecret, async (req, res) => {
   try {
     const data = extractBooking(req.body);
-    if (!data.webinar_name) {
-      return res.status(400).json({ error: 'webinar_name is required in payload' });
-    }
     const webinar_id = await findOrCreateWebinar(data.webinar_name);
 
     // Upsert by appointment_id to be idempotent
@@ -97,9 +94,6 @@ router.post('/booking', requireWebhookSecret, async (req, res) => {
 router.post('/payment', requireWebhookSecret, async (req, res) => {
   try {
     const data = extractPayment(req.body);
-    if (!data.webinar_name) {
-      return res.status(400).json({ error: 'webinar_name is required in payload' });
-    }
     if (!data.amount || data.amount <= 0) {
       return res.status(400).json({ error: 'amount must be > 0' });
     }
