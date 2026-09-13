@@ -46,8 +46,15 @@ function extractPayment(body) {
   };
 }
 
+function todayWebinarName() {
+  const now = new Date();
+  return `Webinar ${now.getMonth()+1}/${now.getDate()}/${now.getFullYear()}`;
+}
+
 async function findOrCreateWebinar(name) {
-  if (!name) throw new Error('webinar_name is required');
+  // Fall back to today's date if GHL didn't resolve the field
+  const resolved = (name || '').trim();
+  name = (resolved && resolved !== 'Webinar') ? resolved : todayWebinarName();
   const date = parseWebinarDate(name);
   const existing = await pool.query('SELECT id FROM webinars WHERE name = $1', [name]);
   if (existing.rows.length) return existing.rows[0].id;
