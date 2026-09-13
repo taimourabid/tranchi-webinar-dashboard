@@ -159,12 +159,12 @@ router.get('/webinars/:id/leads', async (req, res) => {
   res.json(result.rows);
 });
 
-// PATCH /api/leads/:id/outcomes — VA checks/unchecks
+// PATCH /api/leads/:id/outcomes — VA checks/unchecks + closer
 router.patch('/leads/:id/outcomes', async (req, res) => {
-  const { showed, triaged, qualified } = req.body;
+  const { showed, triaged, qualified, closer } = req.body;
   await pool.query(
-    'UPDATE leads SET showed=$1, triaged=$2, qualified=$3 WHERE id=$4',
-    [!!showed, !!triaged, !!qualified, req.params.id]
+    'UPDATE leads SET showed=$1, triaged=$2, qualified=$3, closer=$4 WHERE id=$5',
+    [!!showed, !!triaged, !!qualified, closer || null, req.params.id]
   );
   res.json({ ok: true });
 });
@@ -199,6 +199,21 @@ router.post('/payments', async (req, res) => {
 router.delete('/leads/:id', async (req, res) => {
   await pool.query('DELETE FROM leads WHERE id=$1', [req.params.id]);
   res.json({ ok: true });
+});
+
+// DELETE /api/payments/:id
+router.delete('/payments/:id', async (req, res) => {
+  await pool.query('DELETE FROM payments WHERE id=$1', [req.params.id]);
+  res.json({ ok: true });
+});
+
+// GET /api/webinars/:id/payments — for management
+router.get('/webinars/:id/payments', async (req, res) => {
+  const result = await pool.query(
+    'SELECT id, contact_name, closer, amount, collected_at, source FROM payments WHERE webinar_id=$1 ORDER BY collected_at DESC',
+    [req.params.id]
+  );
+  res.json(result.rows);
 });
 
 // POST /api/admin/merge/:from/:into — merge one webinar into another

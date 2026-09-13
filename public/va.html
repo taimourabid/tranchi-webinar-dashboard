@@ -190,6 +190,26 @@ input[type=checkbox] {
 .save-btn:hover { background: rgba(124,58,237,0.25); color: #c4b5fd; }
 .save-btn.saved  { background: rgba(16,185,129,0.15); border-color: rgba(16,185,129,0.3); color: var(--green); }
 
+.del-btn {
+  background: transparent; border: 1px solid rgba(239,68,68,0.25);
+  color: rgba(239,68,68,0.6); border-radius: 7px; padding: 7px 10px;
+  font-family: inherit; font-size: 12px; cursor: pointer; transition: all 0.15s;
+}
+.del-btn:hover { background: rgba(239,68,68,0.1); color: var(--red); border-color: rgba(239,68,68,0.5); }
+
+.closer-input {
+  background: rgba(255,255,255,0.05); border: 1px solid var(--border);
+  border-radius: 7px; padding: 6px 10px; color: var(--text);
+  font-family: inherit; font-size: 13px; outline: none; width: 120px;
+  transition: border-color 0.2s;
+}
+.closer-input:focus { border-color: var(--accent); }
+
+.section-title-bar {
+  font-size: 11px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase;
+  color: var(--muted2); padding: 24px 28px 12px; border-top: 1px solid var(--border); margin-top: 8px;
+}
+
 .empty { color: var(--muted2); font-size: 14px; text-align: center; padding: 60px; }
 
 .toast {
@@ -256,6 +276,23 @@ input[type=checkbox] {
   </table>
 </div>
 
+<div class="section-title-bar" id="paymentsTitleBar" style="display:none">Payments</div>
+<div class="table-wrap" id="paymentsWrap" style="display:none">
+  <table>
+    <thead>
+      <tr>
+        <th>Contact</th>
+        <th>Closer</th>
+        <th>Amount</th>
+        <th>Collected At</th>
+        <th>Source</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody id="paymentsBody"></tbody>
+  </table>
+</div>
+
 </div>
 
 <div class="toast" id="toast">Saved successfully</div>
@@ -274,19 +311,25 @@ async function loadWebinars() {
 async function loadLeads() {
   const id = document.getElementById('webinarSelect').value;
   if (!id) return;
-
-  const res = await fetch(`/api/webinars/${id}/leads`);
-  leads = await res.json();
+  const [leadsRes, paymentsRes] = await Promise.all([
+    fetch(`/api/webinars/${id}/leads`),
+    fetch(`/api/webinars/${id}/payments`),
+  ]);
+  leads = await leadsRes.json();
+  const payments = await paymentsRes.json();
   renderLeads();
+  renderPayments(payments);
   updateStats();
   document.getElementById('statsBar').style.display = 'flex';
+  document.getElementById('paymentsTitleBar').style.display = 'block';
+  document.getElementById('paymentsWrap').style.display = 'block';
 }
 
 function updateStats() {
-  document.getElementById('s-booked').textContent   = leads.length;
-  document.getElementById('s-showed').textContent   = leads.filter(l => l.showed).length;
-  document.getElementById('s-triaged').textContent  = leads.filter(l => l.triaged).length;
-  document.getElementById('s-qualified').textContent= leads.filter(l => l.qualified).length;
+  document.getElementById('s-booked').textContent    = leads.length;
+  document.getElementById('s-showed').textContent    = leads.filter(l => l.showed).length;
+  document.getElementById('s-triaged').textContent   = leads.filter(l => l.triaged).length;
+  document.getElementById('s-qualified').textContent = leads.filter(l => l.qualified).length;
 }
 
 function fmtDate(ts) {
@@ -294,27 +337,49 @@ function fmtDate(ts) {
   return new Date(ts).toLocaleString('en-US', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit', hour12: true });
 }
 
+function fmtCash(v) { return '$' + parseFloat(v).toLocaleString('en-US', {minimumFractionDigits:0}); }
+
 function renderLeads() {
   const tbody = document.getElementById('leadsBody');
   if (!leads.length) {
     tbody.innerHTML = '<tr><td colspan="8" class="empty">No leads booked yet for this webinar</td></tr>';
     return;
   }
-
-  tbody.innerHTML = leads.map((l, i) => `
+  tbody.innerHTML = leads.map(l => `
     <tr id="row-${l.id}">
       <td>
         <div class="lead-name">${l.contact_name || '—'}</div>
         <div class="lead-email">${l.contact_email || ''}</div>
         <div class="lead-phone">${l.contact_phone || ''}</div>
       </td>
-      <td>${l.closer ? `<span class="closer-tag">${l.closer}</span>` : '<span style="color:var(--muted2)">—</span>'}</td>
+      <td><input class="closer-input" id="closer-${l.id}" value="${l.closer || ''}" placeholder="Closer name" onchange="markDirty(${l.id})"></td>
       <td style="color:var(--muted);white-space:nowrap">${fmtDate(l.booked_at)}</td>
       <td><input type="checkbox" id="showed-${l.id}" ${l.showed ? 'checked' : ''} onchange="markDirty(${l.id})"></td>
       <td><input type="checkbox" id="triaged-${l.id}" ${l.triaged ? 'checked' : ''} onchange="markDirty(${l.id})"></td>
       <td><input type="checkbox" id="qualified-${l.id}" ${l.qualified ? 'checked' : ''} onchange="markDirty(${l.id})"></td>
       <td><span class="source-tag ${l.source}">${l.source}</span></td>
-      <td><button class="save-btn" id="save-${l.id}" onclick="saveOutcomes(${l.id})">Save</button></td>
+      <td style="display:flex;gap:6px">
+        <button class="save-btn" id="save-${l.id}" onclick="saveOutcomes(${l.id})">Save</button>
+        <button class="del-btn" onclick="deleteLead(${l.id})">✕</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function renderPayments(payments) {
+  const tbody = document.getElementById('paymentsBody');
+  if (!payments.length) {
+    tbody.innerHTML = '<tr><td colspan="6" class="empty">No payments yet</td></tr>';
+    return;
+  }
+  tbody.innerHTML = payments.map(p => `
+    <tr>
+      <td style="font-weight:500">${p.contact_name || '—'}</td>
+      <td>${p.closer || '—'}</td>
+      <td style="color:var(--green);font-weight:700">${fmtCash(p.amount)}</td>
+      <td style="color:var(--muted)">${fmtDate(p.collected_at)}</td>
+      <td><span class="source-tag ${p.source}">${p.source}</span></td>
+      <td><button class="del-btn" onclick="deletePayment(${p.id})">✕</button></td>
     </tr>
   `).join('');
 }
@@ -326,32 +391,41 @@ function markDirty(id) {
 }
 
 async function saveOutcomes(id) {
-  const showed   = document.getElementById(`showed-${id}`).checked;
-  const triaged  = document.getElementById(`triaged-${id}`).checked;
-  const qualified= document.getElementById(`qualified-${id}`).checked;
+  const showed    = document.getElementById(`showed-${id}`).checked;
+  const triaged   = document.getElementById(`triaged-${id}`).checked;
+  const qualified = document.getElementById(`qualified-${id}`).checked;
+  const closer    = document.getElementById(`closer-${id}`).value.trim();
   const btn = document.getElementById(`save-${id}`);
-
-  btn.disabled = true;
-  btn.textContent = 'Saving…';
-
+  btn.disabled = true; btn.textContent = 'Saving…';
   const res = await fetch(`/api/leads/${id}/outcomes`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ showed, triaged, qualified }),
+    body: JSON.stringify({ showed, triaged, qualified, closer }),
   });
-
   if (res.ok) {
-    btn.textContent = 'Saved ✓';
-    btn.classList.add('saved');
+    btn.textContent = 'Saved ✓'; btn.classList.add('saved');
     showToast('Saved');
-    // Update local state
     const lead = leads.find(l => l.id === id);
-    if (lead) { lead.showed = showed; lead.triaged = triaged; lead.qualified = qualified; }
+    if (lead) { lead.showed = showed; lead.triaged = triaged; lead.qualified = qualified; lead.closer = closer; }
     updateStats();
-  } else {
-    btn.textContent = 'Error — retry';
-  }
+  } else { btn.textContent = 'Error — retry'; }
   btn.disabled = false;
+}
+
+async function deleteLead(id) {
+  if (!confirm('Delete this lead? This cannot be undone.')) return;
+  await fetch(`/api/leads/${id}`, { method: 'DELETE' });
+  leads = leads.filter(l => l.id !== id);
+  renderLeads(); updateStats(); showToast('Lead deleted');
+}
+
+async function deletePayment(id) {
+  if (!confirm('Delete this payment? This cannot be undone.')) return;
+  const webinarId = document.getElementById('webinarSelect').value;
+  await fetch(`/api/payments/${id}`, { method: 'DELETE' });
+  const res = await fetch(`/api/webinars/${webinarId}/payments`);
+  renderPayments(await res.json());
+  showToast('Payment deleted');
 }
 
 function showToast(msg) {
