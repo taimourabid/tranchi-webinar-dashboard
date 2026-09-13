@@ -57,14 +57,14 @@ router.get('/webinars/:id/metrics', async (req, res) => {
     pool.query(`
       SELECT
         SUM(amount)                                     AS cash_collected,
-        COUNT(DISTINCT contact_id)                      AS unique_payers
+        COUNT(DISTINCT COALESCE(contact_id, id::text)) AS unique_payers
       FROM payments WHERE webinar_id = $1
     `, [id]),
     pool.query(`
       SELECT
         COALESCE(closer, 'Unassigned')                  AS closer,
         SUM(amount)                                     AS cash_collected,
-        COUNT(DISTINCT contact_id)                      AS deals
+        COUNT(DISTINCT COALESCE(contact_id, id::text)) AS deals
       FROM payments
       WHERE webinar_id = $1
       GROUP BY closer
@@ -114,11 +114,11 @@ router.get('/metrics/all-time', async (req, res) => {
       FROM leads
     `),
     pool.query(`
-      SELECT SUM(amount) AS cash_collected, COUNT(DISTINCT contact_id) AS unique_payers
+      SELECT SUM(amount) AS cash_collected, COUNT(DISTINCT COALESCE(contact_id, id::text)) AS unique_payers
       FROM payments
     `),
     pool.query(`
-      SELECT COALESCE(closer,'Unassigned') AS closer, SUM(amount) AS cash_collected, COUNT(DISTINCT contact_id) AS deals
+      SELECT COALESCE(closer,'Unassigned') AS closer, SUM(amount) AS cash_collected, COUNT(DISTINCT COALESCE(contact_id, id::text)) AS deals
       FROM payments GROUP BY closer ORDER BY cash_collected DESC
     `),
   ]);
