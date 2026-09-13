@@ -201,4 +201,20 @@ router.delete('/leads/:id', async (req, res) => {
   res.json({ ok: true });
 });
 
+// POST /api/admin/dedup — one-shot duplicate webinar cleanup
+router.post('/admin/dedup', async (req, res) => {
+  const dupes = await pool.query(`
+    SELECT name, MIN(id) AS keep_id, array_agg(id ORDER BY id) AS all_ids
+    FROM webinars GROUP BY name HAVING COUNT(*) > 1
+  `);
+  let cleaned = 0;
+  for (const row of dupes.rows) {
+    await pool.query('UPDATE leads    SET webinar_id=$1 WHERE webinar_id=ANY($2)', [row.keep_id, row.all_ids]);
+    await pool.query('UPDATE payments SET webinar_id=$1 WHERE webinar_id=ANY($2)', [row.keep_id, row.all_ids]);
+    await pool.query('DELETE FROM webinars WHERE id=ANY($1) AND id<>$2', [row.all_ids, row.keep_id]);
+    cleaned++;
+  }
+  res.json({ ok: true, duplicates_removed: cleaned });
+});
+
 module.exports = router;
