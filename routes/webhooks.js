@@ -12,35 +12,41 @@ function parseWebinarDate(name) {
   return `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
 }
 
-// Flexibly extract fields from whatever GHL sends
+// GHL wraps our configured custom fields under body.customData
+// Fall back to top-level fields for anything not in customData
 function extractBooking(body) {
-  const c = body.contact || {};
+  const cd = body.customData || {};
+  const u  = body.user || {};
+  const closerName = cd.closer_name || body.closer_name ||
+    [u.firstName, u.lastName].filter(Boolean).join(' ') || null;
   return {
-    contact_id:   body.contact_id   || body.contactId   || c.id       || null,
-    contact_name: body.contact_name || body.contactName || c.name     || body.full_name || body.fullName || [body.firstName, body.lastName].filter(Boolean).join(' ') || null,
-    contact_email:body.contact_email|| body.email       || c.email    || null,
-    contact_phone:body.contact_phone|| body.phone       || c.phone    || null,
-    closer:       body.closer_name  || body.closerName  || body.assigned_user || body.assignedUser?.name || null,
-    webinar_name: body.webinar_name || body.webinarName || body.calendar_name || body.calendarName || body.calendar?.name || null,
-    booked_at:    body.booked_at    || body.startTime   || body.appointmentStartTime || new Date().toISOString(),
-    appointment_id: body.appointment_id || body.appointmentId || body.id || null,
+    contact_id:    cd.contact_id    || body.contact_id    || body.contactId  || null,
+    contact_name:  cd.contact_name  || body.contact_name  || body.full_name  || body.fullName || null,
+    contact_email: cd.contact_email || body.contact_email || body.email      || null,
+    contact_phone: cd.contact_phone || body.contact_phone || body.phone      || null,
+    closer:        closerName,
+    webinar_name:  cd.webinar_name  || body.webinar_name  || body['webinar date'] || null,
+    booked_at:     cd.booked_at     || body.booked_at     || body.startTime  || new Date().toISOString(),
+    appointment_id:cd.appointment_id|| body.appointment_id|| body.appointmentId || body.id || null,
   };
 }
 
 function extractPayment(body) {
-  const c = body.contact || {};
-  const rawAmount = String(body.amount_paid || body.amount || body.total || body.price || '0');
-  const amount = parseFloat(rawAmount.replace(/[^0-9.]/g, '')) || 0;
-  // Generate a stable dedup key when GHL doesn't send a transaction_id
-  const contact_id = body.contact_id || body.contactId || c.id || null;
-  const collected_at = body.collected_at || body.paid_at || body.paidAt || body.createdAt || new Date().toISOString();
-  const transaction_id = body.transaction_id || body.transactionId ||
+  const cd = body.customData || {};
+  const u  = body.user || {};
+  const closerName = cd.closer_name || body.closer_name ||
+    [u.firstName, u.lastName].filter(Boolean).join(' ') || null;
+  const contact_id = cd.contact_id || body.contact_id || body.contactId || null;
+  const rawAmount  = String(cd.amount_paid || body['Amount paid'] || body.amount_paid || body.amount || '0');
+  const amount     = parseFloat(rawAmount.replace(/[^0-9.]/g, '')) || 0;
+  const collected_at = cd.collected_at || body.collected_at || body.paid_at || new Date().toISOString();
+  const transaction_id = cd.transaction_id || body.transaction_id ||
     `${contact_id}-${amount}-${new Date(collected_at).getTime()}`;
   return {
     contact_id,
-    contact_name:  body.contact_name || body.contactName || c.name  || null,
-    closer:        body.closer_name  || body.closerName  || body.assigned_user || null,
-    webinar_name:  body.webinar_name || body.webinarName || body.calendar_name || body.calendarName || null,
+    contact_name:  cd.contact_name  || body.contact_name  || body.full_name  || null,
+    closer:        closerName,
+    webinar_name:  cd.webinar_name  || body.webinar_name  || body['webinar date'] || null,
     amount,
     transaction_id,
     collected_at,
