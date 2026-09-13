@@ -201,6 +201,15 @@ router.delete('/leads/:id', async (req, res) => {
   res.json({ ok: true });
 });
 
+// POST /api/admin/merge/:from/:into — merge one webinar into another
+router.post('/admin/merge/:from/:into', async (req, res) => {
+  const { from, into } = req.params;
+  await pool.query('UPDATE leads    SET webinar_id=$1 WHERE webinar_id=$2', [into, from]);
+  await pool.query('UPDATE payments SET webinar_id=$1 WHERE webinar_id=$2', [into, from]);
+  await pool.query('DELETE FROM webinars WHERE id=$1', [from]);
+  res.json({ ok: true, merged_from: from, into });
+});
+
 // POST /api/admin/dedup — normalize names and merge duplicate webinars
 router.post('/admin/dedup', async (req, res) => {
   // Step 1: normalize all webinar names (replace non-breaking spaces etc.)
