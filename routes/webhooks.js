@@ -94,9 +94,11 @@ router.post('/booking', requireWebhookSecret, async (req, res) => {
 // POST /webhooks/payment
 router.post('/payment', requireWebhookSecret, async (req, res) => {
   try {
+    console.log('Payment webhook raw body:', JSON.stringify(req.body));
     const data = extractPayment(req.body);
+    console.log('Payment extracted amount:', data.amount, '| raw amount_paid:', req.body.amount_paid);
     if (!data.amount || data.amount <= 0) {
-      return res.status(400).json({ error: 'amount must be > 0' });
+      return res.status(400).json({ error: 'amount must be > 0', received: req.body.amount_paid || req.body.amount || null });
     }
     const webinar_id = await findOrCreateWebinar(data.webinar_name);
 
