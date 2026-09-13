@@ -5,7 +5,7 @@ const { pool } = require('../db');
 // GET /api/webinars — list all webinars
 router.get('/webinars', async (req, res) => {
   const result = await pool.query(
-    'SELECT * FROM webinars ORDER BY date DESC NULLS LAST, created_at DESC'
+    'SELECT DISTINCT ON (name) * FROM webinars ORDER BY name, date DESC NULLS LAST, created_at DESC'
   );
   res.json(result.rows);
 });

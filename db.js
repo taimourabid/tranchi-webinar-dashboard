@@ -54,11 +54,20 @@ async function initDb() {
     CREATE INDEX IF NOT EXISTS idx_payments_webinar ON payments(webinar_id);
     CREATE INDEX IF NOT EXISTS idx_payments_contact ON payments(contact_id);
   `);
-  // Remove duplicate webinar names, keeping the earliest created record
+  // Deduplicate webinars: keep lowest id per name, reassign leads/payments first
   await pool.query(`
-    DELETE FROM webinars WHERE id NOT IN (
-      SELECT MIN(id) FROM webinars GROUP BY name
-    )
+    DO $$
+    DECLARE dup RECORD;
+    BEGIN
+      FOR dup IN
+        SELECT name, MIN(id) AS keep_id, array_agg(id ORDER BY id) AS all_ids
+        FROM webinars GROUP BY name HAVING COUNT(*) > 1
+      LOOP
+        UPDATE leads    SET webinar_id = dup.keep_id WHERE webinar_id = ANY(dup.all_ids) AND webinar_id <> dup.keep_id;
+        UPDATE payments SET webinar_id = dup.keep_id WHERE webinar_id = ANY(dup.all_ids) AND webinar_id <> dup.keep_id;
+        DELETE FROM webinars WHERE id = ANY(dup.all_ids) AND id <> dup.keep_id;
+      END LOOP;
+    END $$;
   `);
   console.log('Database schema initialized');
 }
