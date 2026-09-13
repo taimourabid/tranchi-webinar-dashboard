@@ -91,7 +91,7 @@ router.get('/webinars/:id/metrics', async (req, res) => {
     show_rate:     booked    ? showed    / booked    : 0,
     triage_rate:   booked    ? triaged   / booked    : 0,
     qualified_rate:booked    ? qualified / booked    : 0,
-    closing_rate:  qualified ? unique_payers / qualified : 0,
+    closing_rate:  qualified ? unique_payers / qualified : (booked ? unique_payers / booked : 0),
     aov:           unique_payers ? cash / unique_payers : 0,
     cash_collected:cash,
     closers:       closerRes.rows.map(r => ({
@@ -138,7 +138,7 @@ router.get('/metrics/all-time', async (req, res) => {
     show_rate:     booked    ? showed    / booked    : 0,
     triage_rate:   booked    ? triaged   / booked    : 0,
     qualified_rate:booked    ? qualified / booked    : 0,
-    closing_rate:  qualified ? unique_payers / qualified : 0,
+    closing_rate:  qualified ? unique_payers / qualified : (booked ? unique_payers / booked : 0),
     aov:           unique_payers ? cash / unique_payers : 0,
     cash_collected:cash,
     closers:       closerRes.rows.map(r => ({
