@@ -29,14 +29,20 @@ function extractBooking(body) {
 
 function extractPayment(body) {
   const c = body.contact || {};
+  const amount = parseFloat(body.amount_paid || body.amount || body.total || body.price || 0);
+  // Generate a stable dedup key when GHL doesn't send a transaction_id
+  const contact_id = body.contact_id || body.contactId || c.id || null;
+  const collected_at = body.collected_at || body.paid_at || body.paidAt || body.createdAt || new Date().toISOString();
+  const transaction_id = body.transaction_id || body.transactionId ||
+    `${contact_id}-${amount}-${new Date(collected_at).getTime()}`;
   return {
-    contact_id:    body.contact_id   || body.contactId   || c.id    || null,
+    contact_id,
     contact_name:  body.contact_name || body.contactName || c.name  || null,
     closer:        body.closer_name  || body.closerName  || body.assigned_user || null,
     webinar_name:  body.webinar_name || body.webinarName || body.calendar_name || body.calendarName || null,
-    amount:        parseFloat(body.amount || body.total || body.price || 0),
-    transaction_id:body.transaction_id || body.transactionId || body.id || null,
-    collected_at:  body.collected_at || body.paid_at || body.paidAt || body.createdAt || new Date().toISOString(),
+    amount,
+    transaction_id,
+    collected_at,
   };
 }
 
