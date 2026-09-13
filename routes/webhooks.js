@@ -29,7 +29,8 @@ function extractBooking(body) {
 
 function extractPayment(body) {
   const c = body.contact || {};
-  const amount = parseFloat(body.amount_paid || body.amount || body.total || body.price || 0);
+  const rawAmount = String(body.amount_paid || body.amount || body.total || body.price || '0');
+  const amount = parseFloat(rawAmount.replace(/[^0-9.]/g, '')) || 0;
   // Generate a stable dedup key when GHL doesn't send a transaction_id
   const contact_id = body.contact_id || body.contactId || c.id || null;
   const collected_at = body.collected_at || body.paid_at || body.paidAt || body.createdAt || new Date().toISOString();
