@@ -77,24 +77,22 @@ router.post('/booking', requireWebhookSecret, async (req, res) => {
     const webinar_id = await findOrCreateWebinar(data.webinar_name);
 
     // Upsert per contact per webinar — multiple bookings by same contact = 1 lead
-    if (data.contact_id) {
+    const existing = data.contact_id
+      ? await pool.query('SELECT id FROM leads WHERE webinar_id=$1 AND contact_id=$2 LIMIT 1', [webinar_id, data.contact_id])
+      : { rows: [] };
+
+    if (existing.rows.length) {
       await pool.query(`
-        INSERT INTO leads (webinar_id, contact_id, contact_name, contact_email, contact_phone, closer, appointment_id, booked_at, source, raw_payload)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'auto',$9)
-        ON CONFLICT (webinar_id, contact_id) DO UPDATE SET
-          contact_name   = EXCLUDED.contact_name,
-          contact_email  = EXCLUDED.contact_email,
-          contact_phone  = EXCLUDED.contact_phone,
-          closer         = COALESCE(EXCLUDED.closer, leads.closer),
-          appointment_id = EXCLUDED.appointment_id,
-          raw_payload    = EXCLUDED.raw_payload
-      `, [webinar_id, data.contact_id, data.contact_name, data.contact_email, data.contact_phone, data.closer, data.appointment_id, data.booked_at, req.body]);
+        UPDATE leads SET contact_name=$1, contact_email=$2, contact_phone=$3,
+          closer=COALESCE($4, closer), appointment_id=$5, raw_payload=$6
+        WHERE id=$7
+      `, [data.contact_name, data.contact_email, data.contact_phone, data.closer, data.appointment_id, req.body, existing.rows[0].id]);
     } else {
       await pool.query(`
         INSERT INTO leads (webinar_id, contact_id, contact_name, contact_email, contact_phone, closer, appointment_id, booked_at, source, raw_payload)
         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'auto',$9)
-        ON CONFLICT (appointment_id) DO UPDATE SET contact_name = EXCLUDED.contact_name
-      `, [webinar_id, null, data.contact_name, data.contact_email, data.contact_phone, data.closer, data.appointment_id, data.booked_at, req.body]);
+        ON CONFLICT (appointment_id) DO UPDATE SET contact_name=EXCLUDED.contact_name, raw_payload=EXCLUDED.raw_payload
+      `, [webinar_id, data.contact_id, data.contact_name, data.contact_email, data.contact_phone, data.closer, data.appointment_id, data.booked_at, req.body]);
     }
 
     res.json({ ok: true, webinar_id, webinar_name: data.webinar_name });
