@@ -54,6 +54,12 @@ async function initDb() {
     CREATE INDEX IF NOT EXISTS idx_payments_webinar ON payments(webinar_id);
     CREATE INDEX IF NOT EXISTS idx_payments_contact ON payments(contact_id);
   `);
+  // Remove duplicate webinar names, keeping the earliest created record
+  await pool.query(`
+    DELETE FROM webinars WHERE id NOT IN (
+      SELECT MIN(id) FROM webinars GROUP BY name
+    )
+  `);
   console.log('Database schema initialized');
 }
 

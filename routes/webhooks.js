@@ -59,16 +59,14 @@ function todayWebinarName() {
 }
 
 async function findOrCreateWebinar(name) {
-  // Fall back to today's date if GHL didn't resolve the field
   const resolved = (name || '').trim();
   name = (resolved && resolved !== 'Webinar') ? resolved : todayWebinarName();
   const date = parseWebinarDate(name);
-  const existing = await pool.query('SELECT id FROM webinars WHERE name = $1', [name]);
-  if (existing.rows.length) return existing.rows[0].id;
-  const result = await pool.query(
-    'INSERT INTO webinars (name, date, status) VALUES ($1, $2, $3) RETURNING id',
-    [name, date, 'upcoming']
-  );
+  const result = await pool.query(`
+    INSERT INTO webinars (name, date, status) VALUES ($1, $2, 'upcoming')
+    ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
+    RETURNING id
+  `, [name, date]);
   return result.rows[0].id;
 }
 
