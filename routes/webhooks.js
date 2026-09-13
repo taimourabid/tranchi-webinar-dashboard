@@ -59,7 +59,7 @@ function todayWebinarName() {
 }
 
 async function findOrCreateWebinar(name) {
-  const resolved = (name || '').trim();
+  const resolved = (name || '').replace(/ /g, ' ').trim();
   name = (resolved && resolved !== 'Webinar') ? resolved : todayWebinarName();
   const date = parseWebinarDate(name);
   const result = await pool.query(`

@@ -201,8 +201,11 @@ router.delete('/leads/:id', async (req, res) => {
   res.json({ ok: true });
 });
 
-// POST /api/admin/dedup — one-shot duplicate webinar cleanup
+// POST /api/admin/dedup — normalize names and merge duplicate webinars
 router.post('/admin/dedup', async (req, res) => {
+  // Step 1: normalize all webinar names (replace non-breaking spaces etc.)
+  await pool.query(`UPDATE webinars SET name = regexp_replace(trim(name), '[\\u00a0\\s]+', ' ', 'g')`);
+  // Step 2: merge duplicates
   const dupes = await pool.query(`
     SELECT name, MIN(id) AS keep_id, array_agg(id ORDER BY id) AS all_ids
     FROM webinars GROUP BY name HAVING COUNT(*) > 1
