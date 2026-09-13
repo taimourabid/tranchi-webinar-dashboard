@@ -48,10 +48,10 @@ router.get('/webinars/:id/metrics', async (req, res) => {
   const [leadsRes, paymentsRes, closerRes] = await Promise.all([
     pool.query(`
       SELECT
-        COUNT(*)                                        AS booked,
-        COUNT(*) FILTER (WHERE showed = true)           AS showed,
-        COUNT(*) FILTER (WHERE triaged = true)          AS triaged,
-        COUNT(*) FILTER (WHERE qualified = true)        AS qualified
+        COUNT(DISTINCT COALESCE(contact_id, id::text))                                              AS booked,
+        COUNT(DISTINCT CASE WHEN showed    THEN COALESCE(contact_id, id::text) END)                 AS showed,
+        COUNT(DISTINCT CASE WHEN triaged   THEN COALESCE(contact_id, id::text) END)                 AS triaged,
+        COUNT(DISTINCT CASE WHEN qualified THEN COALESCE(contact_id, id::text) END)                 AS qualified
       FROM leads WHERE webinar_id = $1
     `, [id]),
     pool.query(`
@@ -107,10 +107,10 @@ router.get('/metrics/all-time', async (req, res) => {
   const [leadsRes, paymentsRes, closerRes] = await Promise.all([
     pool.query(`
       SELECT
-        COUNT(*)                                 AS booked,
-        COUNT(*) FILTER (WHERE showed = true)    AS showed,
-        COUNT(*) FILTER (WHERE triaged = true)   AS triaged,
-        COUNT(*) FILTER (WHERE qualified = true) AS qualified
+        COUNT(DISTINCT COALESCE(contact_id, id::text))                                 AS booked,
+        COUNT(DISTINCT CASE WHEN showed    THEN COALESCE(contact_id, id::text) END)    AS showed,
+        COUNT(DISTINCT CASE WHEN triaged   THEN COALESCE(contact_id, id::text) END)    AS triaged,
+        COUNT(DISTINCT CASE WHEN qualified THEN COALESCE(contact_id, id::text) END)    AS qualified
       FROM leads
     `),
     pool.query(`

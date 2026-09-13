@@ -51,6 +51,8 @@ async function initDb() {
 
     CREATE INDEX IF NOT EXISTS idx_leads_webinar ON leads(webinar_id);
     CREATE INDEX IF NOT EXISTS idx_leads_contact ON leads(contact_id);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_leads_unique_contact_webinar
+      ON leads(webinar_id, contact_id) WHERE contact_id IS NOT NULL;
     CREATE INDEX IF NOT EXISTS idx_payments_webinar ON payments(webinar_id);
     CREATE INDEX IF NOT EXISTS idx_payments_contact ON payments(contact_id);
   `);
