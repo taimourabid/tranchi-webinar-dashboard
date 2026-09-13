@@ -418,6 +418,10 @@ select:hover { border-color: rgba(255,255,255,0.15); }
   <div class="modal">
     <h2>Add Lead Manually</h2>
     <div class="form-row">
+      <label>Webinar</label>
+      <select id="l-webinar"></select>
+    </div>
+    <div class="form-row">
       <label>Full Name</label>
       <input type="text" id="l-name" placeholder="John Doe">
     </div>
@@ -449,6 +453,10 @@ select:hover { border-color: rgba(255,255,255,0.15); }
 <div class="overlay" id="paymentModal">
   <div class="modal">
     <h2>Add Payment Manually</h2>
+    <div class="form-row">
+      <label>Webinar</label>
+      <select id="p-webinar"></select>
+    </div>
     <div class="form-row">
       <label>Contact Name</label>
       <input type="text" id="p-name" placeholder="John Doe">
@@ -624,10 +632,18 @@ async function loadMetrics() {
 async function loadWebinars() {
   const res = await fetch('/api/webinars');
   webinars = await res.json();
-  const sel = document.getElementById('webinarSelect');
-  sel.innerHTML = '<option value="all">All Webinars (Aggregate)</option>' +
-    webinars.map(w => `<option value="${w.id}">${w.name}</option>`).join('');
-  sel.value = currentWebinarId;
+  const options = webinars.map(w => `<option value="${w.id}">${w.name}</option>`).join('');
+  document.getElementById('webinarSelect').innerHTML =
+    '<option value="all">All Webinars (Aggregate)</option>' + options;
+  document.getElementById('webinarSelect').value = currentWebinarId;
+  // Keep modal selectors in sync
+  document.getElementById('l-webinar').innerHTML = options;
+  document.getElementById('p-webinar').innerHTML = options;
+  // Pre-select current webinar in modals if one is chosen
+  if (currentWebinarId !== 'all') {
+    document.getElementById('l-webinar').value = currentWebinarId;
+    document.getElementById('p-webinar').value = currentWebinarId;
+  }
 }
 
 async function loadWebinar(id) {
@@ -656,9 +672,10 @@ function closeModal(id) { document.getElementById(id).classList.remove('open'); 
 document.querySelectorAll('.overlay').forEach(o => o.addEventListener('click', e => { if (e.target === o) o.classList.remove('open'); }));
 
 async function saveLead() {
-  if (currentWebinarId === 'all') { alert('Please select a specific webinar first.'); return; }
+  const webinar_id = document.getElementById('l-webinar').value || currentWebinarId;
+  if (!webinar_id || webinar_id === 'all') { alert('Please select a webinar.'); return; }
   const body = {
-    webinar_id:    currentWebinarId,
+    webinar_id,
     contact_name:  document.getElementById('l-name').value,
     contact_email: document.getElementById('l-email').value,
     contact_phone: document.getElementById('l-phone').value,
@@ -673,9 +690,10 @@ async function saveLead() {
 }
 
 async function savePayment() {
-  if (currentWebinarId === 'all') { alert('Please select a specific webinar first.'); return; }
+  const webinar_id = document.getElementById('p-webinar').value || currentWebinarId;
+  if (!webinar_id || webinar_id === 'all') { alert('Please select a webinar.'); return; }
   const body = {
-    webinar_id:   currentWebinarId,
+    webinar_id,
     contact_name: document.getElementById('p-name').value,
     closer:       document.getElementById('p-closer').value,
     amount:       document.getElementById('p-amount').value,
