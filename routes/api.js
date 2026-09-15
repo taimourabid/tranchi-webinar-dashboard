@@ -30,6 +30,12 @@ router.patch('/webinars/:id', async (req, res) => {
   res.json({ ok: true });
 });
 
+// DELETE /api/webinars/:id
+router.delete('/webinars/:id', async (req, res) => {
+  await pool.query('DELETE FROM webinars WHERE id=$1', [req.params.id]);
+  res.json({ ok: true });
+});
+
 // POST /api/webinars — manually create webinar
 router.post('/webinars', async (req, res) => {
   const { name, date, status } = req.body;
