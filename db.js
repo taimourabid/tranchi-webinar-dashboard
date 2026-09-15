@@ -49,6 +49,17 @@ async function initDb() {
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
 
+    CREATE TABLE IF NOT EXISTS webinar_ad_stats (
+      id                  SERIAL PRIMARY KEY,
+      webinar_id          INTEGER REFERENCES webinars(id) ON DELETE CASCADE UNIQUE,
+      ad_spend            NUMERIC(10,2) DEFAULT 0,
+      link_clicks         INTEGER DEFAULT 0,
+      opt_ins             INTEGER DEFAULT 0,
+      attendees           INTEGER DEFAULT 0,
+      attendees_at_offer  INTEGER DEFAULT 0,
+      updated_at          TIMESTAMPTZ DEFAULT NOW()
+    );
+
     CREATE INDEX IF NOT EXISTS idx_leads_webinar ON leads(webinar_id);
     CREATE INDEX IF NOT EXISTS idx_leads_contact ON leads(contact_id);
     CREATE UNIQUE INDEX IF NOT EXISTS idx_leads_unique_contact_webinar

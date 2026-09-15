@@ -376,6 +376,46 @@ select:hover { border-color: rgba(255,255,255,0.15); }
     </div>
   </div>
 
+  <!-- Ad Performance -->
+  <div class="section" id="adSection">
+    <div class="section-title" style="display:flex;align-items:center;justify-content:space-between;">
+      <span>Ad Performance</span>
+      <button class="btn" id="editAdBtn" onclick="openModal('adStats')" style="font-size:11px;padding:5px 10px;display:none;">Edit Stats</button>
+    </div>
+    <div class="metric-grid">
+      <div class="metric-card">
+        <div class="metric-label">Ad Spend</div>
+        <div class="metric-value neutral" id="ad-spend">—</div>
+        <div class="metric-sub">Total paid</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">ROAS</div>
+        <div class="metric-value positive" id="ad-roas">—</div>
+        <div class="metric-sub">Return on ad spend</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Link Clicks</div>
+        <div class="metric-value neutral" id="ad-clicks">—</div>
+        <div class="metric-sub" id="ad-cpc-sub">— cost per click</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Opt-ins</div>
+        <div class="metric-value neutral" id="ad-optins">—</div>
+        <div class="metric-sub" id="ad-optin-rate-sub">— opt-in rate</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Attendees</div>
+        <div class="metric-value neutral" id="ad-attendees">—</div>
+        <div class="metric-sub">Joined live</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">At Offer</div>
+        <div class="metric-value neutral" id="ad-at-offer">—</div>
+        <div class="metric-sub" id="ad-at-offer-sub">— stayed to offer</div>
+      </div>
+    </div>
+  </div>
+
   <!-- Funnel Chart -->
   <div class="section">
     <div class="section-title">Funnel Breakdown</div>
@@ -472,6 +512,37 @@ select:hover { border-color: rgba(255,255,255,0.15); }
     <div class="modal-actions">
       <button class="cancel" onclick="closeModal('paymentModal')">Cancel</button>
       <button class="save" onclick="savePayment()">Save Payment</button>
+    </div>
+  </div>
+</div>
+
+<!-- Ad Stats Modal -->
+<div class="overlay" id="adStatsModal">
+  <div class="modal">
+    <h2>Edit Ad Stats</h2>
+    <div class="form-row">
+      <label>Ad Spend ($)</label>
+      <input type="number" id="as-spend" placeholder="0.00" min="0" step="0.01">
+    </div>
+    <div class="form-row">
+      <label>Link Clicks</label>
+      <input type="number" id="as-clicks" placeholder="0" min="0" step="1">
+    </div>
+    <div class="form-row">
+      <label>Opt-ins / Registrations</label>
+      <input type="number" id="as-optins" placeholder="0" min="0" step="1">
+    </div>
+    <div class="form-row">
+      <label>Total Attendees</label>
+      <input type="number" id="as-attendees" placeholder="0" min="0" step="1">
+    </div>
+    <div class="form-row">
+      <label>Attendees at Offer</label>
+      <input type="number" id="as-at-offer" placeholder="0" min="0" step="1">
+    </div>
+    <div class="modal-actions">
+      <button class="cancel" onclick="closeModal('adStatsModal')">Cancel</button>
+      <button class="save" onclick="saveAdStats()">Save</button>
     </div>
   </div>
 </div>
@@ -618,17 +689,6 @@ function renderClosers(closers) {
   `).join('');
 }
 
-async function loadMetrics() {
-  const url = currentWebinarId === 'all'
-    ? '/api/metrics/all-time'
-    : `/api/webinars/${currentWebinarId}/metrics`;
-  try {
-    const res = await fetch(url);
-    const m = await res.json();
-    renderMetrics(m);
-  } catch(e) { console.error(e); }
-}
-
 async function loadWebinars() {
   const res = await fetch('/api/webinars');
   webinars = await res.json();
@@ -648,10 +708,12 @@ async function loadWebinars() {
 
 async function loadWebinar(id) {
   currentWebinarId = id;
+  const editBtn = document.getElementById('editAdBtn');
   if (id === 'all') {
     document.getElementById('webinarName').textContent = 'All Webinars';
     document.getElementById('webinarDate').textContent = '';
     document.getElementById('webinarBadge').innerHTML = '';
+    editBtn.style.display = 'none';
   } else {
     const w = webinars.find(x => x.id == id);
     if (w) {
@@ -659,12 +721,19 @@ async function loadWebinar(id) {
       document.getElementById('webinarDate').textContent = w.date ? new Date(w.date).toLocaleDateString('en-US', {weekday:'long',year:'numeric',month:'long',day:'numeric'}) : '';
       document.getElementById('webinarBadge').innerHTML = `<span class="badge ${w.status}">${w.status}</span>`;
     }
+    editBtn.style.display = 'inline-flex';
   }
-  await loadMetrics();
+  await loadMetricsAndAds();
 }
 
 // Modals
 function openModal(type) {
+  if (type === 'adStats') {
+    if (currentWebinarId === 'all') { alert('Select a specific webinar first.'); return; }
+    openAdStatsModal();
+    document.getElementById('adStatsModal').classList.add('open');
+    return;
+  }
   const id = type === 'lead' ? 'leadModal' : type === 'payment' ? 'paymentModal' : 'webinarModal';
   document.getElementById(id).classList.add('open');
 }
@@ -685,7 +754,7 @@ async function saveLead() {
     qualified:     document.getElementById('l-qualified').checked,
   };
   const res = await fetch('/api/leads', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
-  if (res.ok) { closeModal('leadModal'); loadMetrics(); }
+  if (res.ok) { closeModal('leadModal'); loadMetricsAndAds(); }
   else { alert('Error saving lead.'); }
 }
 
@@ -699,7 +768,7 @@ async function savePayment() {
     amount:       document.getElementById('p-amount').value,
   };
   const res = await fetch('/api/payments', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
-  if (res.ok) { closeModal('paymentModal'); loadMetrics(); }
+  if (res.ok) { closeModal('paymentModal'); loadMetricsAndAds(); }
   else { alert('Error saving payment.'); }
 }
 
@@ -716,13 +785,92 @@ async function saveWebinar() {
   } else { alert('Error creating webinar.'); }
 }
 
+let currentAdStats = {};
+
+function renderAdStats(ad, cashCollected) {
+  const spend = ad.ad_spend || 0;
+  const clicks = ad.link_clicks || 0;
+  const optins = ad.opt_ins || 0;
+  const attendees = ad.attendees || 0;
+  const atOffer = ad.attendees_at_offer || 0;
+
+  const roas = spend > 0 ? cashCollected / spend : null;
+  const cpc  = clicks > 0 ? spend / clicks : null;
+  const optinRate = clicks > 0 ? optins / clicks : null;
+  const atOfferRate = attendees > 0 ? atOffer / attendees : null;
+
+  setCard('ad-spend',     fmt.cash(spend),   'neutral');
+  setCard('ad-roas',      roas != null ? roas.toFixed(2) + 'x' : '—', roas >= 1 ? 'positive' : 'neutral');
+  setCard('ad-clicks',    fmt.num(clicks),   'neutral');
+  setCard('ad-optins',    fmt.num(optins),   'neutral');
+  setCard('ad-attendees', fmt.num(attendees),'neutral');
+  setCard('ad-at-offer',  fmt.num(atOffer),  'neutral');
+
+  document.getElementById('ad-cpc-sub').textContent       = cpc != null ? fmt.cash(cpc) + ' per click' : '— cost per click';
+  document.getElementById('ad-optin-rate-sub').textContent = optinRate != null ? (optinRate*100).toFixed(1)+'% opt-in rate' : '— opt-in rate';
+  document.getElementById('ad-at-offer-sub').textContent  = atOfferRate != null ? (atOfferRate*100).toFixed(1)+'% stayed to offer' : '— stayed to offer';
+}
+
+async function loadAdStats(cashCollected) {
+  const url = currentWebinarId === 'all'
+    ? '/api/ad-stats/all-time'
+    : `/api/webinars/${currentWebinarId}/ad-stats`;
+  try {
+    const res = await fetch(url);
+    currentAdStats = await res.json();
+    renderAdStats(currentAdStats, cashCollected || 0);
+  } catch(e) { console.error(e); }
+}
+
+async function openAdStatsModal() {
+  document.getElementById('as-spend').value    = currentAdStats.ad_spend || '';
+  document.getElementById('as-clicks').value   = currentAdStats.link_clicks || '';
+  document.getElementById('as-optins').value   = currentAdStats.opt_ins || '';
+  document.getElementById('as-attendees').value = currentAdStats.attendees || '';
+  document.getElementById('as-at-offer').value  = currentAdStats.attendees_at_offer || '';
+}
+
+async function saveAdStats() {
+  if (currentWebinarId === 'all') { alert('Select a specific webinar to edit ad stats.'); return; }
+  const body = {
+    ad_spend:           parseFloat(document.getElementById('as-spend').value) || 0,
+    link_clicks:        parseInt(document.getElementById('as-clicks').value)  || 0,
+    opt_ins:            parseInt(document.getElementById('as-optins').value)  || 0,
+    attendees:          parseInt(document.getElementById('as-attendees').value) || 0,
+    attendees_at_offer: parseInt(document.getElementById('as-at-offer').value)  || 0,
+  };
+  const res = await fetch(`/api/webinars/${currentWebinarId}/ad-stats`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (res.ok) {
+    closeModal('adStatsModal');
+    await loadMetricsAndAds();
+  } else { alert('Error saving ad stats.'); }
+}
+
+let lastCash = 0;
+async function loadMetricsAndAds() {
+  const url = currentWebinarId === 'all'
+    ? '/api/metrics/all-time'
+    : `/api/webinars/${currentWebinarId}/metrics`;
+  try {
+    const res = await fetch(url);
+    const m = await res.json();
+    lastCash = m.cash_collected || 0;
+    renderMetrics(m);
+  } catch(e) { console.error(e); }
+  await loadAdStats(lastCash);
+}
+
 // Init + polling
 async function init() {
   await loadWebinars();
-  await loadMetrics();
+  await loadMetricsAndAds();
   setInterval(async () => {
     await loadWebinars();
-    await loadMetrics();
+    await loadMetricsAndAds();
   }, 15000);
 }
 

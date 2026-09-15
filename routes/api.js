@@ -231,6 +231,53 @@ router.post('/admin/merge/:from/:into', async (req, res) => {
   res.json({ ok: true, merged_from: from, into });
 });
 
+// GET /api/webinars/:id/ad-stats
+router.get('/webinars/:id/ad-stats', async (req, res) => {
+  const result = await pool.query(
+    'SELECT * FROM webinar_ad_stats WHERE webinar_id=$1',
+    [req.params.id]
+  );
+  res.json(result.rows[0] || { ad_spend:0, link_clicks:0, opt_ins:0, attendees:0, attendees_at_offer:0 });
+});
+
+// PUT /api/webinars/:id/ad-stats
+router.put('/webinars/:id/ad-stats', async (req, res) => {
+  const { ad_spend, link_clicks, opt_ins, attendees, attendees_at_offer } = req.body;
+  await pool.query(`
+    INSERT INTO webinar_ad_stats (webinar_id, ad_spend, link_clicks, opt_ins, attendees, attendees_at_offer, updated_at)
+    VALUES ($1,$2,$3,$4,$5,$6,NOW())
+    ON CONFLICT (webinar_id) DO UPDATE SET
+      ad_spend           = EXCLUDED.ad_spend,
+      link_clicks        = EXCLUDED.link_clicks,
+      opt_ins            = EXCLUDED.opt_ins,
+      attendees          = EXCLUDED.attendees,
+      attendees_at_offer = EXCLUDED.attendees_at_offer,
+      updated_at         = NOW()
+  `, [req.params.id, ad_spend||0, link_clicks||0, opt_ins||0, attendees||0, attendees_at_offer||0]);
+  res.json({ ok: true });
+});
+
+// GET /api/ad-stats/all-time — aggregate across all webinars
+router.get('/ad-stats/all-time', async (req, res) => {
+  const result = await pool.query(`
+    SELECT
+      SUM(ad_spend)           AS ad_spend,
+      SUM(link_clicks)        AS link_clicks,
+      SUM(opt_ins)            AS opt_ins,
+      SUM(attendees)          AS attendees,
+      SUM(attendees_at_offer) AS attendees_at_offer
+    FROM webinar_ad_stats
+  `);
+  const row = result.rows[0];
+  res.json({
+    ad_spend:           parseFloat(row.ad_spend)           || 0,
+    link_clicks:        parseInt(row.link_clicks)          || 0,
+    opt_ins:            parseInt(row.opt_ins)              || 0,
+    attendees:          parseInt(row.attendees)            || 0,
+    attendees_at_offer: parseInt(row.attendees_at_offer)   || 0,
+  });
+});
+
 // POST /api/admin/dedup — normalize names and merge duplicate webinars
 router.post('/admin/dedup', async (req, res) => {
   // Step 1: normalize all webinar names (replace non-breaking spaces etc.)
