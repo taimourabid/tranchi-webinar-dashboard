@@ -120,6 +120,14 @@ router.post('/payment', requireWebhookSecret, async (req, res) => {
     );
     const lead_id = leadResult.rows[0]?.id || null;
 
+    // Auto-mark as showed + qualified when a payment is received
+    if (lead_id) {
+      await pool.query(
+        'UPDATE leads SET showed = true, qualified = true WHERE id = $1',
+        [lead_id]
+      );
+    }
+
     // Upsert by transaction_id
     await pool.query(`
       INSERT INTO payments (webinar_id, contact_id, contact_name, lead_id, closer, amount, transaction_id, collected_at, source, raw_payload)
