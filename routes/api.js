@@ -49,7 +49,11 @@ router.post('/webinars', async (req, res) => {
 
 // GET /api/webinars/:id/metrics
 router.get('/webinars/:id/metrics', async (req, res) => {
-  const id = req.params.id;
+  const id  = req.params.id;
+  const src = req.query.source;
+  const hasSrc = src && src !== 'all';
+  const lParams  = hasSrc ? [id, src] : [id];
+  const lFilter  = hasSrc ? ' AND lead_source = $2' : '';
 
   const [leadsRes, paymentsRes, closerRes] = await Promise.all([
     pool.query(`
@@ -58,24 +62,24 @@ router.get('/webinars/:id/metrics', async (req, res) => {
         COUNT(DISTINCT CASE WHEN showed    THEN COALESCE(contact_id, id::text) END)                 AS showed,
         COUNT(DISTINCT CASE WHEN triaged   THEN COALESCE(contact_id, id::text) END)                 AS triaged,
         COUNT(DISTINCT CASE WHEN qualified THEN COALESCE(contact_id, id::text) END)                 AS qualified
-      FROM leads WHERE webinar_id = $1
-    `, [id]),
+      FROM leads WHERE webinar_id = $1${lFilter}
+    `, lParams),
     pool.query(`
       SELECT
         SUM(amount)                                     AS cash_collected,
         COUNT(DISTINCT COALESCE(contact_id, id::text)) AS unique_payers
-      FROM payments WHERE webinar_id = $1
-    `, [id]),
+      FROM payments WHERE webinar_id = $1${lFilter}
+    `, lParams),
     pool.query(`
       SELECT
         COALESCE(closer, 'Unassigned')                  AS closer,
         SUM(amount)                                     AS cash_collected,
         COUNT(DISTINCT COALESCE(contact_id, id::text)) AS deals
       FROM payments
-      WHERE webinar_id = $1
+      WHERE webinar_id = $1${lFilter}
       GROUP BY closer
       ORDER BY cash_collected DESC
-    `, [id]),
+    `, lParams),
   ]);
 
   const l = leadsRes.rows[0];
@@ -110,6 +114,12 @@ router.get('/webinars/:id/metrics', async (req, res) => {
 
 // GET /api/metrics/all-time — aggregate across all webinars
 router.get('/metrics/all-time', async (req, res) => {
+  const src    = req.query.source;
+  const hasSrc = src && src !== 'all';
+  const params  = hasSrc ? [src] : [];
+  const filter  = hasSrc ? ' WHERE lead_source = $1' : '';
+  const andFilter = hasSrc ? ' AND lead_source = $1' : '';
+
   const [leadsRes, paymentsRes, closerRes] = await Promise.all([
     pool.query(`
       SELECT
@@ -117,16 +127,16 @@ router.get('/metrics/all-time', async (req, res) => {
         COUNT(DISTINCT CASE WHEN showed    THEN COALESCE(contact_id, id::text) END)    AS showed,
         COUNT(DISTINCT CASE WHEN triaged   THEN COALESCE(contact_id, id::text) END)    AS triaged,
         COUNT(DISTINCT CASE WHEN qualified THEN COALESCE(contact_id, id::text) END)    AS qualified
-      FROM leads
-    `),
+      FROM leads${filter}
+    `, params),
     pool.query(`
       SELECT SUM(amount) AS cash_collected, COUNT(DISTINCT COALESCE(contact_id, id::text)) AS unique_payers
-      FROM payments
-    `),
+      FROM payments${filter}
+    `, params),
     pool.query(`
       SELECT COALESCE(closer,'Unassigned') AS closer, SUM(amount) AS cash_collected, COUNT(DISTINCT COALESCE(contact_id, id::text)) AS deals
-      FROM payments GROUP BY closer ORDER BY cash_collected DESC
-    `),
+      FROM payments${filter} GROUP BY closer ORDER BY cash_collected DESC
+    `, params),
   ]);
 
   const l = leadsRes.rows[0];

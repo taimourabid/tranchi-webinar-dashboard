@@ -28,6 +28,7 @@ function extractBooking(body) {
     webinar_name:  cd.webinar_name  || body.webinar_name  || body['webinar date'] || null,
     booked_at:     cd.booked_at     || body.booked_at     || body.startTime  || new Date().toISOString(),
     appointment_id:cd.appointment_id|| body.appointment_id|| body.appointmentId || body.id || null,
+    lead_source:   (cd.source       || body.source        || 'paid').toLowerCase(),
   };
 }
 
@@ -89,10 +90,10 @@ router.post('/booking', requireWebhookSecret, async (req, res) => {
       `, [data.contact_name, data.contact_email, data.contact_phone, data.closer, data.appointment_id, req.body, existing.rows[0].id]);
     } else {
       await pool.query(`
-        INSERT INTO leads (webinar_id, contact_id, contact_name, contact_email, contact_phone, closer, appointment_id, booked_at, source, raw_payload)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'auto',$9)
-        ON CONFLICT (appointment_id) DO UPDATE SET contact_name=EXCLUDED.contact_name, raw_payload=EXCLUDED.raw_payload
-      `, [webinar_id, data.contact_id, data.contact_name, data.contact_email, data.contact_phone, data.closer, data.appointment_id, data.booked_at, req.body]);
+        INSERT INTO leads (webinar_id, contact_id, contact_name, contact_email, contact_phone, closer, appointment_id, booked_at, source, lead_source, raw_payload)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'auto',$9,$10)
+        ON CONFLICT (appointment_id) DO UPDATE SET contact_name=EXCLUDED.contact_name, lead_source=EXCLUDED.lead_source, raw_payload=EXCLUDED.raw_payload
+      `, [webinar_id, data.contact_id, data.contact_name, data.contact_email, data.contact_phone, data.closer, data.appointment_id, data.booked_at, data.lead_source, req.body]);
     }
 
     res.json({ ok: true, webinar_id, webinar_name: data.webinar_name });
@@ -113,12 +114,13 @@ router.post('/payment', requireWebhookSecret, async (req, res) => {
     }
     const webinar_id = await findOrCreateWebinar(data.webinar_name);
 
-    // Find matching lead for the lead_id FK
+    // Find matching lead for the lead_id FK and inherit its lead_source
     const leadResult = await pool.query(
-      'SELECT id FROM leads WHERE webinar_id = $1 AND contact_id = $2 LIMIT 1',
+      'SELECT id, lead_source FROM leads WHERE webinar_id = $1 AND contact_id = $2 LIMIT 1',
       [webinar_id, data.contact_id]
     );
-    const lead_id = leadResult.rows[0]?.id || null;
+    const lead_id     = leadResult.rows[0]?.id          || null;
+    const lead_source = leadResult.rows[0]?.lead_source || 'paid';
 
     // Auto-mark as showed + qualified when a payment is received
     if (lead_id) {
@@ -130,14 +132,15 @@ router.post('/payment', requireWebhookSecret, async (req, res) => {
 
     // Upsert by transaction_id
     await pool.query(`
-      INSERT INTO payments (webinar_id, contact_id, contact_name, lead_id, closer, amount, transaction_id, collected_at, source, raw_payload)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'auto',$9)
+      INSERT INTO payments (webinar_id, contact_id, contact_name, lead_id, closer, amount, transaction_id, collected_at, source, lead_source, raw_payload)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'auto',$9,$10)
       ON CONFLICT (transaction_id) DO UPDATE SET
         amount       = EXCLUDED.amount,
         contact_name = EXCLUDED.contact_name,
         closer       = EXCLUDED.closer,
+        lead_source  = EXCLUDED.lead_source,
         raw_payload  = EXCLUDED.raw_payload
-    `, [webinar_id, data.contact_id, data.contact_name, lead_id, data.closer, data.amount, data.transaction_id, data.collected_at, req.body]);
+    `, [webinar_id, data.contact_id, data.contact_name, lead_id, data.closer, data.amount, data.transaction_id, data.collected_at, lead_source, req.body]);
 
     res.json({ ok: true, webinar_id, amount: data.amount });
   } catch (err) {

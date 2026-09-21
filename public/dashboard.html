@@ -81,6 +81,23 @@ header {
 
 .header-controls { display: flex; align-items: center; gap: 12px; }
 
+.source-toggle {
+  display: flex;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.source-toggle button {
+  background: none; border: none; border-right: 1px solid var(--border);
+  color: var(--muted); padding: 7px 13px; cursor: pointer;
+  font-size: 12px; font-weight: 500; font-family: 'Inter', sans-serif;
+  transition: background 0.15s, color 0.15s; white-space: nowrap;
+}
+.source-toggle button:last-child { border-right: none; }
+.source-toggle button.active { background: var(--accent); color: #fff; }
+.source-toggle button:hover:not(.active) { background: var(--card-h); color: var(--text); }
+
 select, button.btn {
   font-family: 'Inter', sans-serif;
   font-size: 13px;
@@ -318,6 +335,12 @@ select:hover { border-color: rgba(255,255,255,0.15); }
         <div class="live-dot"></div>
         <span class="live-label">Live</span>
       </div>
+      <div class="source-toggle" id="sourceToggle">
+        <button class="active" onclick="setSource('all')">All</button>
+        <button onclick="setSource('paid')">Paid</button>
+        <button onclick="setSource('organic')">Organic</button>
+        <button onclick="setSource('none')">None</button>
+      </div>
       <select id="webinarSelect" onchange="loadWebinar(this.value)">
         <option value="all">All Webinars (Aggregate)</option>
       </select>
@@ -406,7 +429,7 @@ select:hover { border-color: rgba(255,255,255,0.15); }
       <div class="metric-card">
         <div class="metric-label">Attendees</div>
         <div class="metric-value neutral" id="ad-attendees">—</div>
-        <div class="metric-sub">Joined live</div>
+        <div class="metric-sub" id="ad-attendees-sub">Joined live</div>
       </div>
       <div class="metric-card">
         <div class="metric-label">At Offer</div>
@@ -797,6 +820,7 @@ function renderAdStats(ad, cashCollected) {
   const roas = spend > 0 ? cashCollected / spend : null;
   const cpc  = clicks > 0 ? spend / clicks : null;
   const optinRate = clicks > 0 ? optins / clicks : null;
+  const showUpRate = optins > 0 ? attendees / optins : null;
   const atOfferRate = attendees > 0 ? atOffer / attendees : null;
 
   setCard('ad-spend',     fmt.cash(spend),   'neutral');
@@ -808,6 +832,7 @@ function renderAdStats(ad, cashCollected) {
 
   document.getElementById('ad-cpc-sub').textContent       = cpc != null ? fmt.cash(cpc) + ' per click' : '— cost per click';
   document.getElementById('ad-optin-rate-sub').textContent = optinRate != null ? (optinRate*100).toFixed(1)+'% opt-in rate' : '— opt-in rate';
+  document.getElementById('ad-attendees-sub').textContent  = showUpRate != null ? (showUpRate*100).toFixed(1)+'% show-up rate' : 'Joined live';
   document.getElementById('ad-at-offer-sub').textContent  = atOfferRate != null ? (atOfferRate*100).toFixed(1)+'% stayed to offer' : '— stayed to offer';
 }
 
@@ -850,11 +875,25 @@ async function saveAdStats() {
   } else { alert('Error saving ad stats.'); }
 }
 
+let currentSource = 'all';
+
+function setSource(src) {
+  currentSource = src;
+  document.querySelectorAll('#sourceToggle button').forEach(b =>
+    b.classList.toggle('active', b.textContent.toLowerCase() === src)
+  );
+  // Ad performance only makes sense for paid traffic
+  const showAds = src === 'all' || src === 'paid';
+  document.getElementById('adSection').style.display = showAds ? '' : 'none';
+  loadMetricsAndAds();
+}
+
 let lastCash = 0;
 async function loadMetricsAndAds() {
+  const srcParam = currentSource !== 'all' ? `?source=${currentSource}` : '';
   const url = currentWebinarId === 'all'
-    ? '/api/metrics/all-time'
-    : `/api/webinars/${currentWebinarId}/metrics`;
+    ? `/api/metrics/all-time${srcParam}`
+    : `/api/webinars/${currentWebinarId}/metrics${srcParam}`;
   try {
     const res = await fetch(url);
     const m = await res.json();

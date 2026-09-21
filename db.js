@@ -67,6 +67,11 @@ async function initDb() {
     CREATE INDEX IF NOT EXISTS idx_payments_webinar ON payments(webinar_id);
     CREATE INDEX IF NOT EXISTS idx_payments_contact ON payments(contact_id);
   `);
+  // Add lead_source column if not already present; existing rows default to 'paid'
+  await pool.query(`
+    ALTER TABLE leads    ADD COLUMN IF NOT EXISTS lead_source TEXT NOT NULL DEFAULT 'paid';
+    ALTER TABLE payments ADD COLUMN IF NOT EXISTS lead_source TEXT NOT NULL DEFAULT 'paid';
+  `);
   // Deduplicate webinars: keep lowest id per name, reassign leads/payments first
   await pool.query(`
     DO $$
