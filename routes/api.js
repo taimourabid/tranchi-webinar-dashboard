@@ -17,13 +17,14 @@ router.get('/webinars/:id', async (req, res) => {
   res.json(result.rows[0]);
 });
 
-// PATCH /api/webinars/:id — update status
+// PATCH /api/webinars/:id — update status, name, or recording_url
 router.patch('/webinars/:id', async (req, res) => {
-  const { status, name } = req.body;
+  const { status, name, recording_url } = req.body;
   const updates = [];
   const vals = [];
-  if (status) { vals.push(status); updates.push(`status = $${vals.length}`); }
-  if (name)   { vals.push(name);   updates.push(`name = $${vals.length}`); }
+  if (status)        { vals.push(status);        updates.push(`status = $${vals.length}`); }
+  if (name)          { vals.push(name);           updates.push(`name = $${vals.length}`); }
+  if (recording_url !== undefined) { vals.push(recording_url || null); updates.push(`recording_url = $${vals.length}`); }
   if (!updates.length) return res.status(400).json({ error: 'Nothing to update' });
   vals.push(req.params.id);
   await pool.query(`UPDATE webinars SET ${updates.join(', ')} WHERE id = $${vals.length}`, vals);

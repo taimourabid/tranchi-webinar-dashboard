@@ -355,6 +355,15 @@ select:hover { border-color: rgba(255,255,255,0.15); }
       <span id="webinarDate" style="color:var(--muted)"></span>
       <span id="webinarBadge"></span>
     </div>
+    <div id="recordingRow" style="display:none;margin-top:14px;display:flex;align-items:center;gap:10px;">
+      <a id="recordingLink" href="#" target="_blank" class="btn primary" style="font-size:13px;padding:8px 16px;text-decoration:none;">
+        ▶ Watch Recording
+      </a>
+      <button class="btn" onclick="promptRecordingUrl()" style="font-size:12px;padding:7px 12px;" id="editRecordingBtn">Edit</button>
+    </div>
+    <div id="addRecordingRow" style="display:none;margin-top:14px;">
+      <button class="btn" onclick="promptRecordingUrl()" style="font-size:12px;padding:7px 12px;">+ Add Recording</button>
+    </div>
   </div>
 
   <!-- KPI Cards -->
@@ -737,12 +746,14 @@ async function loadWebinar(id) {
     document.getElementById('webinarDate').textContent = '';
     document.getElementById('webinarBadge').innerHTML = '';
     editBtn.style.display = 'none';
+    renderRecording(null);
   } else {
     const w = webinars.find(x => x.id == id);
     if (w) {
       document.getElementById('webinarName').textContent = w.name;
       document.getElementById('webinarDate').textContent = w.date ? new Date(w.date).toLocaleDateString('en-US', {weekday:'long',year:'numeric',month:'long',day:'numeric'}) : '';
       document.getElementById('webinarBadge').innerHTML = `<span class="badge ${w.status}">${w.status}</span>`;
+      renderRecording(w);
     }
     editBtn.style.display = 'inline-flex';
   }
@@ -901,6 +912,38 @@ async function loadMetricsAndAds() {
     renderMetrics(m);
   } catch(e) { console.error(e); }
   await loadAdStats(lastCash);
+}
+
+function renderRecording(webinar) {
+  const recordingRow   = document.getElementById('recordingRow');
+  const addRecordingRow = document.getElementById('addRecordingRow');
+  const link = document.getElementById('recordingLink');
+  if (!webinar || webinar === 'all') {
+    recordingRow.style.display = 'none';
+    addRecordingRow.style.display = 'none';
+    return;
+  }
+  if (webinar.recording_url) {
+    link.href = webinar.recording_url;
+    recordingRow.style.display = 'flex';
+    addRecordingRow.style.display = 'none';
+  } else {
+    recordingRow.style.display = 'none';
+    addRecordingRow.style.display = 'block';
+  }
+}
+
+async function promptRecordingUrl() {
+  const current = webinars.find(x => x.id == currentWebinarId);
+  const url = prompt('Recording URL:', current?.recording_url || '');
+  if (url === null) return;
+  await fetch(`/api/webinars/${currentWebinarId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ recording_url: url }),
+  });
+  await loadWebinars();
+  renderRecording(webinars.find(x => x.id == currentWebinarId));
 }
 
 // Init + polling
