@@ -848,9 +848,10 @@ function renderAdStats(ad, cashCollected) {
 }
 
 async function loadAdStats(cashCollected) {
+  const srcParam = currentSource !== 'all' ? `?source=${currentSource}` : '';
   const url = currentWebinarId === 'all'
-    ? '/api/ad-stats/all-time'
-    : `/api/webinars/${currentWebinarId}/ad-stats`;
+    ? `/api/ad-stats/all-time${srcParam}`
+    : `/api/webinars/${currentWebinarId}/ad-stats${srcParam}`;
   try {
     const res = await fetch(url);
     currentAdStats = await res.json();
@@ -868,7 +869,9 @@ async function openAdStatsModal() {
 
 async function saveAdStats() {
   if (currentWebinarId === 'all') { alert('Select a specific webinar to edit ad stats.'); return; }
+  const src = (currentSource === 'organic') ? 'organic' : 'paid';
   const body = {
+    source:             src,
     ad_spend:           parseFloat(document.getElementById('as-spend').value) || 0,
     link_clicks:        parseInt(document.getElementById('as-clicks').value)  || 0,
     opt_ins:            parseInt(document.getElementById('as-optins').value)  || 0,
@@ -893,9 +896,8 @@ function setSource(src) {
   document.querySelectorAll('#sourceToggle button').forEach(b =>
     b.classList.toggle('active', b.textContent.toLowerCase() === src)
   );
-  // Ad performance only makes sense for paid traffic
-  const showAds = src === 'all' || src === 'paid';
-  document.getElementById('adSection').style.display = showAds ? '' : 'none';
+  // Ad performance section: hide for 'none', show for all others
+  document.getElementById('adSection').style.display = src === 'none' ? 'none' : '';
   loadMetricsAndAds();
 }
 

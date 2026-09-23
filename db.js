@@ -69,6 +69,12 @@ async function initDb() {
   `);
   // Add recording_url to webinars if not present
   await pool.query(`ALTER TABLE webinars ADD COLUMN IF NOT EXISTS recording_url TEXT;`);
+  // Migrate ad_stats to support per-source rows (paid / organic)
+  await pool.query(`
+    ALTER TABLE webinar_ad_stats ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'paid';
+    ALTER TABLE webinar_ad_stats DROP CONSTRAINT IF EXISTS webinar_ad_stats_webinar_id_key;
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_ad_stats_webinar_source ON webinar_ad_stats(webinar_id, source);
+  `);
   // Add lead_source column if not already present; existing rows default to 'paid'
   await pool.query(`
     ALTER TABLE leads    ADD COLUMN IF NOT EXISTS lead_source TEXT NOT NULL DEFAULT 'paid';
