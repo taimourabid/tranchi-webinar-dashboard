@@ -186,6 +186,14 @@ router.patch('/leads/:id/outcomes', async (req, res) => {
   res.json({ ok: true });
 });
 
+// PATCH /api/leads/:id/source — update lead_source
+router.patch('/leads/:id/source', async (req, res) => {
+  const { lead_source } = req.body;
+  if (!['paid','organic','none'].includes(lead_source)) return res.status(400).json({ error: 'Invalid source' });
+  await pool.query('UPDATE leads SET lead_source=$1 WHERE id=$2', [lead_source, req.params.id]);
+  res.json({ ok: true });
+});
+
 // POST /api/leads — manual entry
 router.post('/leads', async (req, res) => {
   const { webinar_id, contact_name, contact_email, contact_phone, closer, booked_at, showed, triaged, qualified } = req.body;
