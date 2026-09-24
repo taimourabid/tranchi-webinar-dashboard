@@ -243,11 +243,22 @@ router.get('/webinars/:id/payments', async (req, res) => {
 
 // POST /api/admin/merge/:from/:into — merge one webinar into another
 router.post('/admin/merge/:from/:into', async (req, res) => {
-  const { from, into } = req.params;
-  await pool.query('UPDATE leads    SET webinar_id=$1 WHERE webinar_id=$2', [into, from]);
-  await pool.query('UPDATE payments SET webinar_id=$1 WHERE webinar_id=$2', [into, from]);
-  await pool.query('DELETE FROM webinars WHERE id=$1', [from]);
-  res.json({ ok: true, merged_from: from, into });
+  try {
+    const { from, into } = req.params;
+    // Drop leads that would violate the unique (webinar_id, contact_id) constraint
+    await pool.query(`
+      DELETE FROM leads WHERE webinar_id=$1 AND contact_id IS NOT NULL AND contact_id IN (
+        SELECT contact_id FROM leads WHERE webinar_id=$2
+      )
+    `, [from, into]);
+    await pool.query('UPDATE leads    SET webinar_id=$1 WHERE webinar_id=$2', [into, from]);
+    await pool.query('UPDATE payments SET webinar_id=$1 WHERE webinar_id=$2', [into, from]);
+    await pool.query('DELETE FROM webinars WHERE id=$1', [from]);
+    res.json({ ok: true, merged_from: from, into });
+  } catch (err) {
+    console.error('Merge error:', err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // GET /api/webinars/:id/ad-stats
