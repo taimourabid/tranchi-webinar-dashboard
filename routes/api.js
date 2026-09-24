@@ -245,7 +245,14 @@ router.get('/webinars/:id/payments', async (req, res) => {
 router.post('/admin/merge/:from/:into', async (req, res) => {
   try {
     const { from, into } = req.params;
-    // Drop leads that would violate the unique (webinar_id, contact_id) constraint
+    // For duplicate leads (same contact_id exists in target), nullify FK refs in payments then delete
+    await pool.query(`
+      UPDATE payments SET lead_id = NULL WHERE lead_id IN (
+        SELECT id FROM leads WHERE webinar_id=$1 AND contact_id IS NOT NULL AND contact_id IN (
+          SELECT contact_id FROM leads WHERE webinar_id=$2
+        )
+      )
+    `, [from, into]);
     await pool.query(`
       DELETE FROM leads WHERE webinar_id=$1 AND contact_id IS NOT NULL AND contact_id IN (
         SELECT contact_id FROM leads WHERE webinar_id=$2
